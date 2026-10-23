@@ -1,6 +1,88 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} { allow read, write: if false; }
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function myPlayerId() {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return u != null && u.data.get('playerId', null) != null ? u.data.playerId : null;
+    }
+    function ownsPlayer(playerId) { return signedIn() && myPlayerId() == playerId; }
+    function matchDoc(matchId) { return get(/databases/$(database)/documents/matches/$(matchId)).data; }
+    function isMatchMesario(matchId) {
+      return signedIn() && request.auth.token.mesario == true && matchDoc(matchId).mesarioUid == request.auth.uid;
+    }
+    function canScore(matchId) {
+      return isAdmin() || (isMatchMesario(matchId) && matchDoc(matchId).status == 'ao-vivo');
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      // usuário só grava o aceite de termos; vínculo com jogador é do admin; papéis só pelo servidor
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['termosAceitosEm', 'termosVersao']);
+      allow update: if (signedIn() && request.auth.uid == uid && changed().hasOnly(['termosAceitosEm', 'termosVersao']))
+        || (isAdmin() && !changed().hasAny(['papeis']));
+    }
+
+    match /players/{playerId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (ownsPlayer(playerId) && !changed().hasAny(['menor']));
+
+      match /private/{docId} {
+        allow read, write: if isAdmin() || ownsPlayer(playerId);
+      }
+    }
+
+    match /teams/{teamId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /seasons/{seasonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /entries/{teamId} { allow read: if true; allow write: if isAdmin(); }
+      match /rosters/{playerId} { allow read: if true; allow write: if isAdmin(); }
+      // calculados pelas Functions
+      match /standings/{teamId} { allow read: if true; allow write: if false; }
+      match /playerStats/{playerId} { allow read: if true; allow write: if false; }
+      match /computed/{docId} { allow read: if true; allow write: if false; }
+    }
+
+    match /matches/{matchId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if (isAdmin() && !changed().hasAny(['placar']))
+        || (isMatchMesario(matchId)
+            && changed().hasOnly(['status', 'mvpPlayerId', 'penaltis'])
+            && (
+              (resource.data.status == 'agendado' && request.resource.data.status in ['agendado', 'ao-vivo'])
+              || (resource.data.status == 'ao-vivo' && request.resource.data.status in ['ao-vivo', 'encerrado'])
+            ));
+
+      match /events/{eventId} {
+        allow read: if true;
+        allow write: if canScore(matchId);
+      }
+      match /lineups/{teamId} {
+        allow read: if true;
+        allow write: if canScore(matchId);
+      }
+    }
+
+    match /deletionRequests/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update, delete: if isAdmin();
+    }
   }
 }

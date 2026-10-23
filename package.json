@@ -1,13 +1,19 @@
 {
   "name": "liga-replay",
   "private": true,
-  "workspaces": ["web", "functions"],
+  "workspaces": [
+    "web",
+    "functions"
+  ],
   "scripts": {
     "test": "npm test -w web && npm test -w functions",
     "build": "npm run build -w functions && npm run build -w web",
-    "emulators": "npm run build && firebase emulators:start --project demo-liga-replay"
+    "emulators": "npm run build && firebase emulators:start --project demo-liga-replay",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-liga-replay 'npx vitest run --config tests/rules/vitest.config.ts'"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
     "firebase-tools": "^15.34.1"
   }
 }
