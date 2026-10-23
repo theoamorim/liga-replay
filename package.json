@@ -1,0 +1,13 @@
+{
+  "name": "liga-replay",
+  "private": true,
+  "workspaces": ["web", "functions"],
+  "scripts": {
+    "test": "npm test -w web && npm test -w functions",
+    "build": "npm run build -w functions && npm run build -w web",
+    "emulators": "npm run build && firebase emulators:start --project demo-liga-replay"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.34.1"
+  }
+}
