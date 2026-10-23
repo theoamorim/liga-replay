@@ -1,6 +1,10 @@
 import { Route, Routes } from "react-router";
 import Layout from "./components/Layout";
 import Placeholder from "./components/Placeholder";
+import RequireRole from "./auth/RequireRole";
+import Entrar from "./pages/conta/Entrar";
+import MinhaConta from "./pages/conta/MinhaConta";
+import Privacidade from "./pages/public/Privacidade";
 
 export default function App() {
   return (
@@ -15,11 +19,11 @@ export default function App() {
         <Route path="times" element={<Placeholder titulo="Times" />} />
         <Route path="times/:teamId" element={<Placeholder titulo="Time" />} />
         <Route path="jogadores/:playerId" element={<Placeholder titulo="Jogador" />} />
-        <Route path="entrar" element={<Placeholder titulo="Entrar" />} />
-        <Route path="conta" element={<Placeholder titulo="Minha conta" />} />
-        <Route path="privacidade" element={<Placeholder titulo="Privacidade" />} />
-        <Route path="admin/*" element={<Placeholder titulo="Administração" />} />
-        <Route path="mesario/*" element={<Placeholder titulo="Mesário" />} />
+        <Route path="entrar" element={<Entrar />} />
+        <Route path="conta" element={<MinhaConta />} />
+        <Route path="privacidade" element={<Privacidade />} />
+        <Route path="admin/*" element={<RequireRole role="admin"><Placeholder titulo="Administração" /></RequireRole>} />
+        <Route path="mesario/*" element={<RequireRole role="mesario"><Placeholder titulo="Mesário" /></RequireRole>} />
         <Route path="*" element={<Placeholder titulo="Página não encontrada" />} />
       </Route>
     </Routes>
