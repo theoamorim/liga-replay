@@ -30,7 +30,9 @@ Site oficial da Liga Replay FUT7 (@ligareplay) com tabela, jogos, súmula digita
 
 - 12 times, 3 grupos de 4, turno único dentro do grupo. Sábados 9h–11h, Campo 1 e Campo 2.
 - Vitória 3, empate 1, derrota 0.
-- Desempate: pontos → saldo de gols → gols pró → confronto direto → sorteio.
+- Desempate: pontos → confronto direto → saldo de gols → gols pró → menos gols sofridos → sorteio.
+  - Confronto direto com 3+ times empatados: mini-tabela só com os jogos entre eles (pontos).
+  - Ranking de 3º e de 4º (times de grupos diferentes): sem confronto direto; usa os demais critérios na ordem.
 - **Classificação para as quartas (8 vagas):**
   - 1º e 2º de cada grupo: direto (6).
   - Melhor 3º colocado (ranking dos 3º): direto (7).
