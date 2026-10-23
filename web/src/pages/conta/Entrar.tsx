@@ -3,6 +3,7 @@ import { Navigate } from "react-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useAuth } from "../../auth/AuthContext";
 import { auth, useEmulators } from "../../firebase";
+import { isInAppBrowser } from "../../auth/signIn";
 
 export default function Entrar() {
   const { user, signIn, loading } = useAuth();
@@ -12,6 +13,12 @@ export default function Entrar() {
     <section className="mx-auto max-w-sm space-y-5 pt-8 text-center">
       <h1 className="text-3xl text-bronze">Entrar</h1>
       <p className="text-sm text-suave">Jogadores, capitães, mesários e administração entram com a conta Google.</p>
+      {isInAppBrowser() && (
+        <p role="alert" className="rounded-lg border border-bronze/50 p-3 text-left text-sm text-bronze">
+          Você abriu o site dentro de um app (Instagram, WhatsApp…). O Google não permite login aqui: toque nos três pontinhos
+          e escolha <strong>Abrir no navegador</strong> (Chrome ou Safari).
+        </p>
+      )}
       <button
         onClick={() => signIn().catch(() => setErro("Não foi possível entrar. Tente novamente."))}
         className="min-h-12 w-full rounded-lg bg-cobre font-semibold text-fundo"

@@ -7,7 +7,7 @@ import SumulaAoVivo from "./SumulaAoVivo";
 import MeusJogos from "./MeusJogos";
 
 const estado: { match: Match; events: MatchEvent[]; lineups: Lineup[] } = { match: null as unknown as Match, events: [], lineups: [] };
-const acoes = { startMatch: vi.fn(), addEvent: vi.fn(), deleteEvent: vi.fn(), closeMatch: vi.fn() };
+const acoes = { startMatch: vi.fn(), addEvent: vi.fn(), deleteEvent: vi.fn(), closeMatch: vi.fn(), saveLineups: vi.fn() };
 
 vi.mock("../../data/matches", () => ({
   useMatch: () => ({ ...estado, loading: false }),
@@ -27,6 +27,7 @@ vi.mock("../../data/sumula", () => ({
   addEvent: (...a: unknown[]) => acoes.addEvent(...a),
   deleteEvent: (...a: unknown[]) => acoes.deleteEvent(...a),
   closeMatch: (...a: unknown[]) => acoes.closeMatch(...a),
+  saveLineups: (...a: unknown[]) => acoes.saveLineups(...a),
 }));
 vi.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: { uid: "mes1" }, claims: { admin: false, mesario: true, capitaoDe: [] } }) }));
 
@@ -100,12 +101,44 @@ test("cartão amarelo", async () => {
   expect(acoes.addEvent).toHaveBeenCalledWith("m1", { tipo: "amarelo", teamId: "B", playerId: "b1", assistPlayerId: null });
 });
 
-test("desfazer apaga o último lance após confirmação", async () => {
-  estado.events = [{ id: "e1", tipo: "gol", teamId: "A", playerId: "a1" }, { id: "e2", tipo: "amarelo", teamId: "B", playerId: "b1" }];
-  vi.spyOn(window, "confirm").mockReturnValue(true);
+const em = (ms: number) => ({ toMillis: () => ms });
+
+test("desfazer apaga o lance mais recente, não o último da lista bruta", async () => {
+  estado.events = [
+    { id: "e3", tipo: "amarelo", teamId: "B", playerId: "b1", criadoEm: em(3000) },
+    { id: "e1", tipo: "gol", teamId: "A", playerId: "a1", criadoEm: em(1000) },
+    { id: "e2", tipo: "gol", teamId: "B", playerId: "b2", criadoEm: em(2000) },
+  ];
+  const confirmar = vi.spyOn(window, "confirm").mockReturnValue(true);
   renderSumula();
   await userEvent.click(screen.getByRole("button", { name: "Desfazer último lance" }));
-  expect(acoes.deleteEvent).toHaveBeenCalledWith("m1", "e2");
+  expect(confirmar.mock.calls[0][0]).toMatch(/Amarelo.*Beta1/);
+  expect(acoes.deleteEvent).toHaveBeenCalledWith("m1", "e3");
+});
+
+test("apagar um lance específico da lista", async () => {
+  estado.events = [
+    { id: "e1", tipo: "gol", teamId: "A", playerId: "a1", criadoEm: em(1000) },
+    { id: "e2", tipo: "amarelo", teamId: "B", playerId: "b1", criadoEm: em(2000) },
+  ];
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  renderSumula();
+  await userEvent.click(screen.getByRole("button", { name: /Apagar lance: Gol · Alfa1/ }));
+  expect(acoes.deleteEvent).toHaveBeenCalledWith("m1", "e1");
+});
+
+test("editar escalação com o jogo em andamento (jogador atrasado)", async () => {
+  estado.lineups = [{ teamId: "A", playerIds: ["a1"], goleiroId: "a1" }, { teamId: "B", playerIds: ["b1", "b2"], goleiroId: "b1" }];
+  renderSumula();
+  await userEvent.click(screen.getByRole("button", { name: "Editar escalação" }));
+  const alfa2 = screen.getByRole("checkbox", { name: /Alfa2/ });
+  expect(alfa2).not.toBeChecked();
+  await userEvent.click(alfa2);
+  await userEvent.click(screen.getByRole("button", { name: "Salvar escalação" }));
+  expect(acoes.saveLineups).toHaveBeenCalledWith("m1", [
+    { teamId: "A", playerIds: ["a1", "a2"], goleiroId: "a1" },
+    { teamId: "B", playerIds: ["b1", "b2"], goleiroId: "b1" },
+  ]);
 });
 
 test("encerrar exige MVP", async () => {

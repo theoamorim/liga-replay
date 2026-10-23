@@ -5,6 +5,10 @@ import type { EventTipo, Lineup } from "./types";
 export async function startMatch(matchId: string, lineups: Lineup[]): Promise<void> {
   // status primeiro: as regras só liberam escalação com o jogo ao vivo
   await updateDoc(doc(db, "matches", matchId), { status: "ao-vivo" });
+  await saveLineups(matchId, lineups);
+}
+
+export async function saveLineups(matchId: string, lineups: Lineup[]): Promise<void> {
   await Promise.all(lineups.map((l) => setDoc(doc(db, "matches", matchId, "lineups", l.teamId), { playerIds: l.playerIds, goleiroId: l.goleiroId ?? null })));
 }
 

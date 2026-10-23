@@ -1,4 +1,5 @@
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut as fbSignOut, type User } from "firebase/auth";
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as fbSignOut, type User } from "firebase/auth";
+import { signInGoogle } from "./signIn";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState, type ReactNode } from "react";
 import { auth, db } from "../firebase";
@@ -33,7 +34,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = {
     user, claims, profile, loading,
-    signIn: async () => { await signInWithPopup(auth, new GoogleAuthProvider()); },
+    signIn: () => signInGoogle({ popup: () => signInWithPopup(auth, new GoogleAuthProvider()), redirect: () => signInWithRedirect(auth, new GoogleAuthProvider()) }),
     signOut: async () => { await fbSignOut(auth); },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

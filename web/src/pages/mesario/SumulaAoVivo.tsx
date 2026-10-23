@@ -2,11 +2,12 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router";
 import EventList from "../../components/EventList";
 import PlayerPicker from "../../components/PlayerPicker";
-import { sortEvents, useMatch } from "../../data/matches";
+import { useMatch } from "../../data/matches";
+import { descreverEvento, sortEvents } from "../../lib/events";
 import { usePlayersByIds, useRoster } from "../../data/players";
 import { nomeCurto } from "../../lib/names";
 import { scoreFromEvents } from "../../lib/score";
-import { addEvent, closeMatch, deleteEvent, startMatch } from "../../data/sumula";
+import { addEvent, closeMatch, deleteEvent, saveLineups, startMatch } from "../../data/sumula";
 import { useTeamMap } from "../../data/teams";
 import type { EventTipo, Lineup } from "../../data/types";
 
@@ -15,7 +16,8 @@ type Passo =
   | { etapa: "time"; tipo: EventTipo }
   | { etapa: "jogador"; tipo: EventTipo; teamId: string }
   | { etapa: "assist"; teamId: string; playerId: string }
-  | { etapa: "encerrar" };
+  | { etapa: "encerrar" }
+  | { etapa: "escalacao" };
 
 const BOTOES: { tipo: EventTipo; label: string; cls: string }[] = [
   { tipo: "gol", label: "Gol", cls: "bg-cobre text-fundo" },
@@ -51,9 +53,10 @@ export default function SumulaAoVivo() {
     </div>
   );
 
+  const rosters = { [m.mandanteId]: rosterA.map((r) => r.playerId), [m.visitanteId]: rosterB.map((r) => r.playerId) };
   if (m.status === "agendado") {
-    return <Escalacao times={[m.mandanteId, m.visitanteId]} rosters={{ [m.mandanteId]: rosterA.map((r) => r.playerId), [m.visitanteId]: rosterB.map((r) => r.playerId) }}
-      players={players} numeros={numeros} nomeTime={nomeTime} onStart={(ls) => startMatch(m.id, ls)} />;
+    return <Escalacao times={[m.mandanteId, m.visitanteId]} rosters={rosters} players={players} numeros={numeros} nomeTime={nomeTime}
+      textoBotao="Iniciar jogo" onConfirm={(ls) => startMatch(m.id, ls)} />;
   }
 
   if (m.status === "encerrado") {
@@ -70,7 +73,23 @@ export default function SumulaAoVivo() {
     setPasso({ etapa: "nada" });
     await addEvent(m.id, { tipo, teamId, playerId, assistPlayerId });
   };
-  const ultimo = events[events.length - 1];
+  const ordenados = sortEvents(events);
+  const ultimo = ordenados[ordenados.length - 1];
+  const apagar = (e: (typeof events)[number], pergunta: string) => {
+    if (confirm(`${pergunta}\n${descreverEvento(e, players)}`)) deleteEvent(m.id, e.id);
+  };
+
+  if (passo.etapa === "escalacao") {
+    return (
+      <section className="space-y-4">
+        {Placar}
+        <Escalacao times={[m.mandanteId, m.visitanteId]} rosters={rosters} players={players} numeros={numeros} nomeTime={nomeTime}
+          inicial={lineups} textoBotao="Salvar escalação"
+          onConfirm={async (ls) => { await saveLineups(m.id, ls); setPasso({ etapa: "nada" }); }} />
+        <button onClick={() => setPasso({ etapa: "nada" })} className="min-h-11 w-full rounded-lg border border-borda">Cancelar</button>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-5">
@@ -131,29 +150,37 @@ export default function SumulaAoVivo() {
 
       {passo.etapa === "nada" && (
         <>
-          <EventList events={sortEvents(events)} players={players} teams={teams} />
+          <EventList events={ordenados} players={players} teams={teams} onDelete={(e) => apagar(e, "Apagar este lance?")} />
           <div className="grid grid-cols-2 gap-3">
             <button
               disabled={!ultimo}
-              onClick={() => { if (ultimo && confirm("Apagar o último lance?")) deleteEvent(m.id, ultimo.id); }}
+              onClick={() => ultimo && apagar(ultimo, "Apagar o último lance?")}
               className="min-h-14 rounded-xl border border-borda disabled:opacity-40"
             >
               Desfazer último lance
             </button>
             <button onClick={() => setPasso({ etapa: "encerrar" })} className="min-h-14 rounded-xl border border-cobre text-bronze">Encerrar jogo</button>
           </div>
+          <button onClick={() => setPasso({ etapa: "escalacao" })} className="min-h-11 w-full rounded-lg border border-borda text-sm">Editar escalação</button>
         </>
       )}
     </section>
   );
 }
 
-function Escalacao({ times, rosters, players, numeros, nomeTime, onStart }: {
+function Escalacao({ times, rosters, players, numeros, nomeTime, onConfirm, textoBotao, inicial }: {
   times: string[]; rosters: Record<string, string[]>; players: Record<string, import("../../data/types").Player>;
-  numeros: Record<string, number | null>; nomeTime(id: string): string; onStart(ls: Lineup[]): void;
+  numeros: Record<string, number | null>; nomeTime(id: string): string; onConfirm(ls: Lineup[]): void;
+  textoBotao: string; inicial?: Lineup[];
 }) {
-  const [fora, setFora] = useState<Set<string>>(new Set());
-  const [goleiro, setGoleiro] = useState<Record<string, string>>({});
+  const [fora, setFora] = useState<Set<string>>(() => {
+    if (!inicial?.length) return new Set();
+    const dentro = new Set(inicial.flatMap((l) => l.playerIds));
+    return new Set(times.flatMap((t) => rosters[t]).filter((p) => !dentro.has(p)));
+  });
+  const [goleiro, setGoleiro] = useState<Record<string, string>>(() =>
+    Object.fromEntries((inicial ?? []).filter((l) => l.goleiroId).map((l) => [l.teamId, l.goleiroId!])),
+  );
   const lineups: Lineup[] = times.map((t) => ({ teamId: t, playerIds: rosters[t].filter((p) => !fora.has(p)), goleiroId: goleiro[t] ?? null }));
   const ok = lineups.every((l) => l.playerIds.length > 0 && l.goleiroId && l.playerIds.includes(l.goleiroId));
   return (
@@ -180,7 +207,7 @@ function Escalacao({ times, rosters, players, numeros, nomeTime, onStart }: {
           {!rosters[t].length && <p className="text-sm text-suave">Elenco vazio. Peça ao admin para cadastrar os jogadores.</p>}
         </div>
       ))}
-      <button disabled={!ok} onClick={() => onStart(lineups)} className="min-h-14 w-full rounded-xl bg-cobre text-lg font-semibold text-fundo disabled:opacity-40">Iniciar jogo</button>
+      <button disabled={!ok} onClick={() => onConfirm(lineups)} className="min-h-14 w-full rounded-xl bg-cobre text-lg font-semibold text-fundo disabled:opacity-40">{textoBotao}</button>
     </section>
   );
 }

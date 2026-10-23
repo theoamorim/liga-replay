@@ -67,8 +67,9 @@ test("mesário lança gol, encerra e a classificação atualiza", async ({ page 
   await page.goto(url);
   await expect(page.getByRole("heading", { name: "Escalação" })).toBeVisible();
   const radios = page.locator('input[type="radio"]');
-  await expect(radios.first()).toBeVisible();
-  const nomesGrupos = new Set(await radios.evaluateAll((els) => els.map((e) => (e as HTMLInputElement).name)));
+  const grupos = () => radios.evaluateAll((els) => [...new Set(els.map((e) => (e as HTMLInputElement).name))]);
+  await expect.poll(async () => (await grupos()).length).toBe(2); // espera os elencos dos dois times
+  const nomesGrupos = await grupos();
   for (const nome of nomesGrupos) await page.locator(`input[type="radio"][name="${nome}"]`).first().check();
   await page.getByRole("button", { name: "Iniciar jogo" }).click();
 
