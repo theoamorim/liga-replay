@@ -21,3 +21,7 @@ export function sortEvents(evs: MatchEvent[]): MatchEvent[] {
   const t = (e: MatchEvent) => (e.criadoEm as { toMillis?: () => number } | undefined)?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
   return [...evs].sort((a, b) => (a.minuto ?? 0) - (b.minuto ?? 0) || t(a) - t(b));
 }
+
+export const useMesarioMatches = (uid: string | undefined) =>
+  useQueryData<Match>(uid ? `mesario:${uid}` : null, () => query(collection(db, "matches"), where("mesarioUid", "==", uid)));
+

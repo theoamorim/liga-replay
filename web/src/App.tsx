@@ -5,6 +5,8 @@ import RequireRole from "./auth/RequireRole";
 import Entrar from "./pages/conta/Entrar";
 import MinhaConta from "./pages/conta/MinhaConta";
 import AdminHome from "./pages/admin/AdminHome";
+import MeusJogos from "./pages/mesario/MeusJogos";
+import SumulaAoVivo from "./pages/mesario/SumulaAoVivo";
 import Privacidade from "./pages/public/Privacidade";
 import Inicio from "./pages/public/Inicio";
 import Jogos from "./pages/public/Jogos";
@@ -34,7 +36,8 @@ export default function App() {
         <Route path="conta" element={<MinhaConta />} />
         <Route path="privacidade" element={<Privacidade />} />
         <Route path="admin/*" element={<RequireRole role="admin"><AdminHome /></RequireRole>} />
-        <Route path="mesario/*" element={<RequireRole role="mesario"><Placeholder titulo="Mesário" /></RequireRole>} />
+        <Route path="mesario" element={<RequireRole role="mesario"><MeusJogos /></RequireRole>} />
+        <Route path="mesario/:matchId" element={<RequireRole role="mesario"><SumulaAoVivo /></RequireRole>} />
         <Route path="*" element={<Placeholder titulo="Página não encontrada" />} />
       </Route>
     </Routes>

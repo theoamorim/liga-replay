@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { Button, Card, Field, Select } from "../../components/Field";
 import { createMatch, updateMatch } from "../../data/admin";
 import { useMatch } from "../../data/matches";
@@ -89,6 +89,7 @@ export default function JogoForm() {
           >
             Salvar
           </Button>
+          {!novo && <Link to={`/mesario/${matchId}`} className="inline-flex min-h-11 items-center rounded-lg border border-borda px-4">Abrir súmula</Link>}
           {match?.status === "encerrado" && (
             <Button variant="secundario" onClick={async () => { await updateMatch(matchId!, { status: "ao-vivo" }); setMsg("Súmula reaberta para correção."); }}>
               Reabrir súmula
