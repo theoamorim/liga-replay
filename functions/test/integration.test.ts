@@ -106,3 +106,46 @@ test("generateSchedule cria 18 jogos e recusa repetir", async () => {
   const r2 = await call("generateSchedule", { seasonId: T, datas: ["2026-11-07", "2026-11-14", "2026-11-21"] }, token);
   expect(r2.body.error?.status).toBe("FAILED_PRECONDITION");
 }, 40000);
+
+test("sorteio estável: recalcular não muda a ordem de times totalmente empatados", async () => {
+  const { recomputeSeason } = await import("../src/season");
+  const T = "t-sorteio";
+  await db.doc(`seasons/${T}`).set({ nome: "Sorteio", config: { formatoMataMata: "padrao-12-times" } });
+  for (const g of ["A", "B", "C"]) for (let i = 1; i <= 4; i++) await db.doc(`seasons/${T}/entries/${g}${i}`).set({ grupo: g });
+  const ordem = async () => {
+    await recomputeSeason(db, T);
+    const s = await db.collection(`seasons/${T}/standings`).get();
+    const q = await db.doc(`seasons/${T}/computed/qualificacao`).get();
+    return JSON.stringify({ pos: s.docs.map((d) => [d.id, d.get("posicao")]).sort(), q: q.get("rankingTerceiros") });
+  };
+  const primeira = await ordem();
+  for (let i = 0; i < 5; i++) expect(await ordem()).toBe(primeira);
+}, 40000);
+
+test("encerramentos simultâneos: a classificação final inclui todos os jogos", async () => {
+  const T = "t-concorrencia";
+  await db.doc(`seasons/${T}`).set({ nome: "Concorrência", config: { pontos: { vitoria: 3, empate: 1, derrota: 0 } } });
+  const times = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"];
+  for (const t of times) await db.doc(`seasons/${T}/entries/${t}`).set({ grupo: "A" });
+  const jogos = [["c1", "c2"], ["c3", "c4"], ["c5", "c6"], ["c7", "c8"]];
+  for (const [i, [a, b]] of jogos.entries()) {
+    const ref = db.doc(`matches/conc-${i}`);
+    await ref.set({ seasonId: T, fase: "grupos", grupo: "A", rodada: 1, mandanteId: a, visitanteId: b, placar: { mandante: 0, visitante: 0 }, status: "ao-vivo" });
+    await ref.collection("events").doc("g1").set({ tipo: "gol", playerId: `${a}-p`, teamId: a });
+  }
+  await new Promise((r) => setTimeout(r, 1500));
+  await Promise.all(jogos.map((_, i) => db.doc(`matches/conc-${i}`).update({ status: "encerrado" })));
+  const total = async () => (await db.collection(`seasons/${T}/standings`).get()).docs.reduce((acc, d) => acc + (d.get("j") ?? 0), 0);
+  await waitFor(total, (n) => n === 8, 20000);
+  await new Promise((r) => setTimeout(r, 3000));
+  expect(await total()).toBe(8);
+}, 60000);
+
+test("lances em sequência rápida: o placar público fica certo", async () => {
+  const ref = db.doc("matches/rapido");
+  await ref.set({ seasonId: "t-rapido", fase: "grupos", grupo: "A", rodada: 1, mandanteId: "A", visitanteId: "B", placar: { mandante: 0, visitante: 0 }, status: "ao-vivo" });
+  await Promise.all([1, 2, 3, 4, 5].map((i) => ref.collection("events").doc(`g${i}`).set({ tipo: "gol", playerId: "p", teamId: "A" })));
+  await waitFor(() => ref.get().then((d) => d.get("placar")), (p) => p?.mandante === 5, 20000);
+  await new Promise((r) => setTimeout(r, 3000));
+  expect((await ref.get()).get("placar")).toEqual({ mandante: 5, visitante: 0 });
+}, 60000);

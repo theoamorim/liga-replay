@@ -8,17 +8,18 @@ export const onEventWritten = onDocumentWritten(
   { document: "matches/{matchId}/events/{eventId}", region: REGION },
   async (event) => {
     const matchRef = db.doc(`matches/${event.params.matchId}`);
-    const [match, events] = await Promise.all([matchRef.get(), matchRef.collection("events").get()]);
-    if (!match.exists) return;
-    const placar = computeScore(
-      events.docs.map((e) => ({ id: e.id, ...e.data() }) as MatchEvent),
-      match.get("mandanteId"),
-      match.get("visitanteId"),
-    );
-    const atual = match.get("placar") ?? {};
-    if (atual.mandante !== placar.mandante || atual.visitante !== placar.visitante) {
-      await matchRef.update({ placar });
-    }
+    // transação: com lances em sequência rápida, só grava o placar de quem leu todos os lances
+    await db.runTransaction(async (tx) => {
+      const [match, events] = await Promise.all([tx.get(matchRef), tx.get(matchRef.collection("events"))]);
+      if (!match.exists) return;
+      const placar = computeScore(
+        events.docs.map((e) => ({ id: e.id, ...e.data() }) as MatchEvent),
+        match.get("mandanteId"),
+        match.get("visitanteId"),
+      );
+      const atual = match.get("placar") ?? {};
+      if (atual.mandante !== placar.mandante || atual.visitante !== placar.visitante) tx.update(matchRef, { placar });
+    });
   },
 );
 

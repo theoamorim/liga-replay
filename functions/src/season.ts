@@ -1,24 +1,20 @@
-import type { Firestore } from "firebase-admin/firestore";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { computeScore } from "./domain/matchScore";
 import { computePlayerStats } from "./domain/playerStats";
 import { qualifyPadrao12 } from "./domain/qualification";
+import { seededRng } from "./domain/rng";
 import { computeGroupStandings } from "./domain/standings";
 import type { Lineup, MatchBundle, MatchEvent, MatchResult, PointsConfig, StandingRow } from "./domain/types";
 
 const DEFAULT_PTS: PointsConfig = { vitoria: 3, empate: 1, derrota: 0 };
 
-async function replaceCollection(db: Firestore, path: string, docs: Record<string, object>) {
-  const col = db.collection(path);
-  const existing = await col.listDocuments();
-  const batch = db.batch();
-  for (const ref of existing) if (!(ref.id in docs)) batch.delete(ref);
-  for (const [id, data] of Object.entries(docs)) batch.set(col.doc(id), data);
-  await batch.commit();
-}
-
 /** Recalcula do zero classificação, qualificação e estatísticas da temporada. Idempotente. */
 export async function recomputeSeason(db: Firestore, seasonId: string): Promise<void> {
   const seasonRef = db.doc(`seasons/${seasonId}`);
+  const metaRef = seasonRef.collection("computed").doc("meta");
+  // geração: só quem começou por último grava (evita resultado antigo sobrescrever o novo)
+  await metaRef.set({ geracao: FieldValue.increment(1) }, { merge: true });
+  const minhaGeracao = (await metaRef.get()).get("geracao") as number;
   const [season, entries, matchesSnap] = await Promise.all([
     seasonRef.get(),
     seasonRef.collection("entries").get(),
@@ -55,7 +51,7 @@ export async function recomputeSeason(db: Firestore, seasonId: string): Promise<
   const groupMatches = bundles.map((b) => b.match).filter((m) => m.fase === "grupos");
   const tables: StandingRow[][] = [...groups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([g, ids]) => computeGroupStandings(g, ids, groupMatches.filter((m) => m.grupo === g), pts));
+    .map(([g, ids]) => computeGroupStandings(g, ids, groupMatches.filter((m) => m.grupo === g), pts, seededRng(`${seasonId}:${g}`)));
 
   const standingDocs: Record<string, object> = {};
   for (const row of tables.flat()) standingDocs[row.teamId] = { ...row };
@@ -63,7 +59,7 @@ export async function recomputeSeason(db: Firestore, seasonId: string): Promise<
   let qualificacao: object = { rankingTerceiros: [], rankingQuartos: [], completo: false, formato: null };
   if ((season.get("config.formatoMataMata") ?? "padrao-12-times") === "padrao-12-times") {
     try {
-      const q = qualifyPadrao12(tables);
+      const q = qualifyPadrao12(tables, seededRng(`${seasonId}:ranking`));
       for (const [teamId, s] of Object.entries(q.situacao)) (standingDocs[teamId] as Record<string, unknown>).situacao = s;
       qualificacao = {
         formato: "padrao-12-times",
@@ -92,9 +88,15 @@ export async function recomputeSeason(db: Firestore, seasonId: string): Promise<
     };
   });
 
-  await Promise.all([
-    replaceCollection(db, `seasons/${seasonId}/standings`, standingDocs),
-    replaceCollection(db, `seasons/${seasonId}/playerStats`, statDocs),
-    seasonRef.collection("computed").doc("qualificacao").set(qualificacao),
-  ]);
+  const standingsCol = seasonRef.collection("standings");
+  const statsCol = seasonRef.collection("playerStats");
+  await db.runTransaction(async (tx) => {
+    const [meta, oldStandings, oldStats] = await Promise.all([tx.get(metaRef), tx.get(standingsCol), tx.get(statsCol)]);
+    if (meta.get("geracao") !== minhaGeracao) return; // um recálculo mais novo vai gravar
+    for (const d of oldStandings.docs) if (!(d.id in standingDocs)) tx.delete(d.ref);
+    for (const d of oldStats.docs) if (!(d.id in statDocs)) tx.delete(d.ref);
+    for (const [id, data] of Object.entries(standingDocs)) tx.set(standingsCol.doc(id), data);
+    for (const [id, data] of Object.entries(statDocs)) tx.set(statsCol.doc(id), data);
+    tx.set(seasonRef.collection("computed").doc("qualificacao"), qualificacao);
+  });
 }
