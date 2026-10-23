@@ -4,6 +4,7 @@ import Placeholder from "./components/Placeholder";
 import RequireRole from "./auth/RequireRole";
 import Entrar from "./pages/conta/Entrar";
 import MinhaConta from "./pages/conta/MinhaConta";
+import AdminHome from "./pages/admin/AdminHome";
 import Privacidade from "./pages/public/Privacidade";
 import Inicio from "./pages/public/Inicio";
 import Jogos from "./pages/public/Jogos";
@@ -32,7 +33,7 @@ export default function App() {
         <Route path="entrar" element={<Entrar />} />
         <Route path="conta" element={<MinhaConta />} />
         <Route path="privacidade" element={<Privacidade />} />
-        <Route path="admin/*" element={<RequireRole role="admin"><Placeholder titulo="Administração" /></RequireRole>} />
+        <Route path="admin/*" element={<RequireRole role="admin"><AdminHome /></RequireRole>} />
         <Route path="mesario/*" element={<RequireRole role="mesario"><Placeholder titulo="Mesário" /></RequireRole>} />
         <Route path="*" element={<Placeholder titulo="Página não encontrada" />} />
       </Route>
