@@ -32,3 +32,38 @@ export interface StandingRow {
   sg: number;
   pts: number;
 }
+
+export type EventTipo = "gol" | "gol-contra" | "amarelo" | "vermelho";
+
+export interface MatchEvent {
+  id: string;
+  tipo: EventTipo;
+  playerId: string;
+  teamId: string;
+  assistPlayerId?: string;
+  minuto?: number;
+}
+
+export interface Lineup {
+  teamId: string;
+  playerIds: string[];
+  goleiroId?: string;
+}
+
+export interface PlayerStatRow {
+  playerId: string;
+  teamId: string;
+  j: number;
+  g: number;
+  a: number;
+  ga: number;
+  am: number;
+  vm: number;
+  mvp: number;
+}
+
+export interface MatchBundle {
+  match: MatchResult & { mvpPlayerId?: string };
+  events: MatchEvent[];
+  lineups: Lineup[];
+}
