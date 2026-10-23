@@ -4,7 +4,7 @@ import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, pe
 import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
 
-const useEmulators = import.meta.env.DEV || import.meta.env.VITE_USE_EMULATORS === "true";
+export const useEmulators = import.meta.env.DEV || import.meta.env.VITE_USE_EMULATORS === "true";
 
 const config = useEmulators
   ? { apiKey: "demo", authDomain: "demo-liga-replay.firebaseapp.com", projectId: "demo-liga-replay", storageBucket: "demo-liga-replay.appspot.com", appId: "demo" }
