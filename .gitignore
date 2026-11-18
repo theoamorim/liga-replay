@@ -1,6 +1,6 @@
 node_modules/
 dist/
-lib/
+functions/lib/
 .superpowers/
 *.log
 .firebase/
@@ -10,3 +10,4 @@ ui-debug.log*
 .env.local
 test-results/
 playwright-report/
+*.tsbuildinfo
